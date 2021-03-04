@@ -1,3 +1,2 @@
-pandas==1.0.0
-numpy==1.18.1
 quantiacsToolbox==3.0.1
+pmdarima==1.8.0
