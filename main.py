@@ -26,22 +26,25 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         pred = model.predict(n_periods = 1)[0]
         mu.append(pred)
 
-    # list of expected returns
-    # print(mu) 
+    S = risk_models.sample_cov(daily_return, returns_data=True)
 
-    # To replace with expected mean from optimized AR/MA parameters
-    # mu = expected_returns.mean_historical_return(daily_return)
-    # Add cash back into the expected returns matrix at 0
-    # mu = pd.Series([0], index=['CASH']).append(mu)
-
-    S = risk_models.sample_cov(daily_return)
     # Add cash back into the covariance matrix
     S.insert(loc=0, column='CASH', value=0)
     cash = functools.reduce(lambda a,b: {**a, **b }, [{ticker: [0]} for ticker in settings['markets']])
     S = pd.DataFrame(cash, index=['CASH']).append(S)
+    # print(S)
     ef = EfficientFrontier(mu, S)
-    optimised_weights = ef.max_sharpe()
-    weights = [value for key, value in optimised_weights.items()]
+    # ef.add_constraint(lambda x : x >= 0.01)
+    try:
+        optimised_weights = ef.max_sharpe()
+        weights = np.array([value for key, value in optimised_weights.items()])
+    except Exception:
+        print("No optimal solution, using same weights allocation in the previous timestep")
+        if settings['history']:
+            weights = settings['history'][-1]
+        else:
+            weights = np.array([1 if i == 'CASH' else 0 for i in settings['markets']])
+    settings['history'].append(weights)
     return weights, settings
     
 def mySettings():
