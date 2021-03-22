@@ -32,6 +32,7 @@ def train_xgb_regressor(future_list):
     for future in future_list:
         df = pd.read_csv(f"./tickerData/{future}.txt")
         df = format_header(df)
+        df = df.loc[df['Date'] < 20210101]
         data = transform_data(df)
         data = data.iloc[:-1]
 
@@ -41,7 +42,7 @@ def train_xgb_regressor(future_list):
         test_x = test_df[REQUIRED_COLS].to_numpy()
         test_y = test_df['Target'].to_numpy()
         model = XGBRegressor(
-            objective ='reg:squarederror',
+            objective='reg:squarederror',
             seed=69,
             n_estimators=100,
             max_depth=3,
