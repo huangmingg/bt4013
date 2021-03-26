@@ -40,20 +40,47 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
 
         return weights, settings
 
+    elif settings['strategy'] == "ema":
+        df = pd.DataFrame(CLOSE)
+        df.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
+        df = df[list(filter(lambda x: x != 'CASH', settings['markets']))]
+        mu = pd.Series([0], index=['CASH'])
+        mu = mu.append(expected_returns.ema_historical_return(df))
+        S = risk_models.sample_cov(df)
+        S.insert(loc=0, column='CASH', value=0)
+        cash = functools.reduce(lambda a, b: {**a, **b}, [{ticker: [0]} for ticker in settings['markets']])
+        S = pd.DataFrame(cash, index=['CASH']).append(S)
+        ef = EfficientFrontier(mu, S)
+
+        try:
+            optimised_weights = ef.max_sharpe()
+            weights = np.array([value for key, value in optimised_weights.items()])
+            print("Optimal solution found!")
+        except Exception:
+            print("No optimal solution, using same weights allocation in the previous timestep")
+            if settings['history']:
+                weights = settings['history'][-1]
+            else:
+                weights = np.array([1 if i == 'CASH' else 0 for i in settings['markets']])
+        settings['history'].append(weights)
+        return weights, settings
+
     elif settings['strategy'] == 'pairs_trade':
         upper_threshold = 0.5
-        lower_threshold = 0.2
+        lower_threshold = 0.1
         pos = np.zeros(nMarkets)
-        for i in range(0, nMarkets - 1):
-            future_name = markets[i + 1]
+        for i in range(0, nMarkets):
+            future_name = markets[i]
+            close = np.transpose(CLOSE)
             if future_name == 'F_BG':
-                close = np.transpose(CLOSE)[i]
-                fbg_price = close[0]
+                fbg_price = close[i][-1]
                 fbg_i = i
             if future_name == 'F_BC':
-                close = np.transpose(CLOSE)[i]
-                fbc_price = close[0]
+                fbc_price = close[i][-1]
                 fbc_i = i
+
+        print(f"FBC: {fbc_price}")
+        print(f"FBG: {fbg_price}")
 
         if fbg_price / fbc_price > 1 + upper_threshold:
             # short fbg long fbc
@@ -62,7 +89,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
             pos[fbc_i] = 1
             pos[fbg_i] = -1
 
-        elif fbg_price / fbc_price < 1 - lower_threshold:
+        elif fbg_price / fbc_price < 1 + lower_threshold:
             # long fbg short fbc
             print("long fbg short fbc")
             pos[fbc_i] = -1
@@ -74,8 +101,8 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         filtered_closed = {}
         models = [f.split(".model")[0] for f in os.listdir("./data/xgb") if f.endswith(".model")]
         future_index = []
-        for i in range(0, nMarkets - 1):
-            future_name = markets[i + 1]
+        for i in range(0, nMarkets):
+            future_name = markets[i]
             if future_name in models:
                 filtered_closed[future_name] = np.transpose(CLOSE)[i]
                 future_index.append(i)
@@ -91,7 +118,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
                 )
                 df = transform_data(df)
                 features = df.iloc[-1:][REQUIRED_COLS].to_numpy()
-                model_dir = f"./data/xgb/{markets[i + 1]}.model"
+                model_dir = f"./data/xgb/{markets[i]}.model"
                 prediction = predict(model_dir, features)[0]
                 closing = np.transpose(CLOSE)[i][-1]
                 pct_change = (closing - prediction) / closing
@@ -120,30 +147,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
 
         return pos, settings
 
-    elif settings['strategy'] == "ema":
-        df = pd.DataFrame(CLOSE)
-        df.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
-        df = df[list(filter(lambda x: x != 'CASH', settings['markets']))]
-        mu = pd.Series([0], index=['CASH'])
-        mu = mu.append(expected_returns.ema_historical_return(df))
-        S = risk_models.sample_cov(df)
-        S.insert(loc=0, column='CASH', value=0)
-        cash = functools.reduce(lambda a, b: {**a, **b}, [{ticker: [0]} for ticker in settings['markets']])
-        S = pd.DataFrame(cash, index=['CASH']).append(S)
-        ef = EfficientFrontier(mu, S)
 
-        try:
-            optimised_weights = ef.max_sharpe()
-            weights = np.array([value for key, value in optimised_weights.items()])
-            print("Optimal solution found!")
-        except Exception:
-            print("No optimal solution, using same weights allocation in the previous timestep")
-            if settings['history']:
-                weights = settings['history'][-1]
-            else:
-                weights = np.array([1 if i == 'CASH' else 0 for i in settings['markets']])
-        settings['history'].append(weights)
-        return weights, settings
 
 
 def mySettings():
@@ -161,7 +165,7 @@ def mySettings():
 
     test_date = {
         'beginInSample': '20190123',
-        'endInSample': '20210225',
+        'endInSample': '20210331',
     }
 
     dates = train_date if MODE == "TRAIN" else test_date
@@ -173,7 +177,7 @@ def mySettings():
                 **dates,
                 'day': 0,
                 'history': [],
-                'strategy': 'ema',
+                'strategy': 'bl_allocation',
                 }
 
     return settings
