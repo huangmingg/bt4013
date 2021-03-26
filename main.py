@@ -11,6 +11,7 @@ from pypfopt import black_litterman
 from pypfopt.black_litterman import BlackLittermanModel
 from pypfopt.risk_models import CovarianceShrinkage
 
+
 def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, settings):
     settings['day'] += 1
     nMarkets = CLOSE.shape[1]
@@ -21,8 +22,6 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         return pos, settings
 
     elif settings['strategy'] == 'sma':
-        nMarkets = CLOSE.shape[1]
-
         periodLonger = 200
         periodShorter = 40
 
@@ -38,9 +37,37 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         pos[shortEquity] = -1
 
         weights = pos / np.nansum(abs(pos))
-        print(weights)
 
         return weights, settings
+
+    elif settings['strategy'] == 'pairs_trade':
+        upper_threshold = 0.5
+        lower_threshold = 0.2
+        pos = np.zeros(nMarkets)
+        for i in range(0, nMarkets - 1):
+            future_name = markets[i + 1]
+            if future_name == 'F_BG':
+                close = np.transpose(CLOSE)[i]
+                fbg_price = close[0]
+                fbg_i = i
+            if future_name == 'F_BC':
+                close = np.transpose(CLOSE)[i]
+                fbc_price = close[0]
+                fbc_i = i
+
+        if fbg_price / fbc_price > 1 + upper_threshold:
+            # short fbg long fbc
+            print("short fbg long fbc")
+
+            pos[fbc_i] = 1
+            pos[fbg_i] = -1
+
+        elif fbg_price / fbc_price < 1 - lower_threshold:
+            # long fbg short fbc
+            print("long fbg short fbc")
+            pos[fbc_i] = -1
+            pos[fbg_i] = 1
+        return pos, settings
 
     elif settings['strategy'] == "bl_allocation":
         viewdict = {}
@@ -93,36 +120,16 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
 
         return pos, settings
 
-    elif settings['strategy'] == "arima":
+    elif settings['strategy'] == "ema":
         df = pd.DataFrame(CLOSE)
         df.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
-        daily_return = (np.log(df) - np.log(df.shift(1))).iloc[1:]
-        # daily_return.drop(['CASH'], axis=1, inplace=True)
-
-        columns = list(daily_return)
-        # mu = pd.Series()
-        mu = pd.Series([0], index=['CASH'])
-
-        # for i in columns:
-        #     # fitting ARMA model first
-        #     # assume stationarity, d=0, no seasonality
-        #     model = auto_arima(daily_return[i], start_p=0, start_q=0, max_p=5, max_q=5, d=0, seasonal=False,
-        #                        stationary=True, suppress_warnings=True, error_action='warn', stepwise=True)
-        #     pred = model.predict(n_periods=1)[0]
-        #     expected = pd.Series([pred], index=[i])
-        #     mu = mu.append(expected)
-
-        mu = mu.append(expected_returns.ema_historical_return(df))
         df = df[list(filter(lambda x: x != 'CASH', settings['markets']))]
-        # S = CovarianceShrinkage(df).ledoit_wolf()
+        mu = pd.Series([0], index=['CASH'])
+        mu = mu.append(expected_returns.ema_historical_return(df))
         S = risk_models.sample_cov(df)
-        print(S)
-        # Add cash back into the covariance matrix
         S.insert(loc=0, column='CASH', value=0)
-        print(S)
         cash = functools.reduce(lambda a, b: {**a, **b}, [{ticker: [0]} for ticker in settings['markets']])
         S = pd.DataFrame(cash, index=['CASH']).append(S)
-        print(S)
         ef = EfficientFrontier(mu, S)
 
         try:
@@ -140,19 +147,33 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
 
 
 def mySettings():
-    futures_list = ['F_AD', 'F_BO', 'F_BP', 'F_C', 'F_CC', 'F_CD', 'F_CL', 'F_CT', 'F_DX', 'F_EC', 'F_ED', 'F_ES', 'F_FC', 'F_FV', 'F_GC', 'F_HG', 'F_HO', 'F_JY', 'F_KC', 'F_LB', 'F_LC', 'F_LN', 'F_MD', 'F_MP', 'F_NG', 'F_NQ', 'F_NR', 'F_O', 'F_OJ', 'F_PA', 'F_PL', 'F_RB', 'F_RU', 'F_S', 'F_SB', 'F_SF', 'F_SI', 'F_SM', 'F_TU', 'F_TY', 'F_US', 'F_W', 'F_XX', 'F_YM', 'F_AX', 'F_CA', 'F_DT', 'F_UB', 'F_UZ', 'F_GS', 'F_LX', 'F_SS', 'F_DL', 'F_ZQ', 'F_VX', 'F_AE', 'F_BG', 'F_BC', 'F_LU', 'F_DM', 'F_AH', 'F_CF', 'F_DZ', 'F_FB', 'F_FL', 'F_FM', 'F_FP', 'F_FY', 'F_GX', 'F_HP', 'F_LR', 'F_LQ', 'F_ND', 'F_NY', 'F_PQ', 'F_RR', 'F_RF', 'F_RP', 'F_RY', 'F_SH', 'F_SX', 'F_TR', 'F_EB', 'F_VF', 'F_VT', 'F_VW', 'F_GD', 'F_F']
+    futures_list = ['CASH', 'F_AD', 'F_BO', 'F_BP', 'F_C', 'F_CC', 'F_CD', 'F_CL', 'F_CT', 'F_DX', 'F_EC', 'F_ED', 'F_ES', 'F_FC', 'F_FV', 'F_GC', 'F_HG', 'F_HO', 'F_JY', 'F_KC', 'F_LB', 'F_LC', 'F_LN', 'F_MD', 'F_MP', 'F_NG', 'F_NQ', 'F_NR', 'F_O', 'F_OJ', 'F_PA', 'F_PL', 'F_RB', 'F_RU', 'F_S', 'F_SB', 'F_SF', 'F_SI', 'F_SM', 'F_TU', 'F_TY', 'F_US', 'F_W', 'F_XX', 'F_YM', 'F_AX', 'F_CA', 'F_DT', 'F_UB', 'F_UZ', 'F_GS', 'F_LX', 'F_SS', 'F_DL', 'F_ZQ', 'F_VX', 'F_AE', 'F_BG', 'F_BC', 'F_LU', 'F_DM', 'F_AH', 'F_CF', 'F_DZ', 'F_FB', 'F_FL', 'F_FM', 'F_FP', 'F_FY', 'F_GX', 'F_HP', 'F_LR', 'F_LQ', 'F_ND', 'F_NY', 'F_PQ', 'F_RR', 'F_RF', 'F_RP', 'F_RY', 'F_SH', 'F_SX', 'F_TR', 'F_EB', 'F_VF', 'F_VT', 'F_VW', 'F_GD', 'F_F']
 
     # possible strategies - add on here
-    # STRATEGIES = ['baseline', 'bl_allocation', 'arima', 'sma']
+    # STRATEGIES = ['baseline', 'bl_allocation', 'arima', 'sma', 'ema', 'pairs_trade']
+    # MODE = "TEST" / "TRAIN"
+    MODE = "TEST"
+
+    train_date = {
+        'beginInSample': '19900101',
+        'endInSample': '20201231',
+    }
+
+    test_date = {
+        'beginInSample': '20190123',
+        'endInSample': '20210225',
+    }
+
+    dates = train_date if MODE == "TRAIN" else test_date
+
     settings = {'markets': futures_list,
                 'lookback': 504,
                 'budget': 10 ** 6,
                 'slippage': 0.05,
-                'beginInSample': '19900101',
-                'endInSample': '20210225',
+                **dates,
                 'day': 0,
                 'history': [],
-                'strategy': 'sma',
+                'strategy': 'ema',
                 }
 
     return settings
