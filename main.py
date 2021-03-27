@@ -10,6 +10,7 @@ from xgb_model import predict, transform_data, REQUIRED_COLS
 from pypfopt import black_litterman
 from pypfopt.black_litterman import BlackLittermanModel
 from pypfopt.risk_models import CovarianceShrinkage
+from ta.volume import OnBalanceVolumeIndicator
 
 
 def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, settings):
@@ -96,6 +97,28 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
             pos[fbg_i] = 1
         return pos, settings
 
+    elif settings['strategy'] == "obv":
+        df = pd.DataFrame(CLOSE)
+        df1 = pd.DataFrame(VOL)
+        df.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
+        df1.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
+
+        columns = list(df.columns)
+        obv = {}
+        for x in columns:
+            if x == 'CASH':
+                obv[x] = 0
+            else:
+                obv[x] = OnBalanceVolumeIndicator(df[x], df1[x]).on_balance_volume().iloc[-1]
+
+        pos = list(obv.values())
+        # long if obv > 0, short if obv < 0
+        pos = list(map(lambda x: 1 if x>0 else -1 if x<-1 else 0, pos))
+        pos = np.array(pos)
+        weights = pos/np.nansum(abs(pos))
+
+        return weights, settings
+
     elif settings['strategy'] == "bl_allocation":
         viewdict = {}
         filtered_closed = {}
@@ -154,7 +177,7 @@ def mySettings():
     futures_list = ['CASH', 'F_AD', 'F_BO', 'F_BP', 'F_C', 'F_CC', 'F_CD', 'F_CL', 'F_CT', 'F_DX', 'F_EC', 'F_ED', 'F_ES', 'F_FC', 'F_FV', 'F_GC', 'F_HG', 'F_HO', 'F_JY', 'F_KC', 'F_LB', 'F_LC', 'F_LN', 'F_MD', 'F_MP', 'F_NG', 'F_NQ', 'F_NR', 'F_O', 'F_OJ', 'F_PA', 'F_PL', 'F_RB', 'F_RU', 'F_S', 'F_SB', 'F_SF', 'F_SI', 'F_SM', 'F_TU', 'F_TY', 'F_US', 'F_W', 'F_XX', 'F_YM', 'F_AX', 'F_CA', 'F_DT', 'F_UB', 'F_UZ', 'F_GS', 'F_LX', 'F_SS', 'F_DL', 'F_ZQ', 'F_VX', 'F_AE', 'F_BG', 'F_BC', 'F_LU', 'F_DM', 'F_AH', 'F_CF', 'F_DZ', 'F_FB', 'F_FL', 'F_FM', 'F_FP', 'F_FY', 'F_GX', 'F_HP', 'F_LR', 'F_LQ', 'F_ND', 'F_NY', 'F_PQ', 'F_RR', 'F_RF', 'F_RP', 'F_RY', 'F_SH', 'F_SX', 'F_TR', 'F_EB', 'F_VF', 'F_VT', 'F_VW', 'F_GD', 'F_F']
 
     # possible strategies - add on here
-    # STRATEGIES = ['baseline', 'bl_allocation', 'arima', 'sma', 'ema', 'pairs_trade']
+    # STRATEGIES = ['baseline', 'bl_allocation', 'arima', 'sma', 'ema', 'pairs_trade', 'obv']
     # MODE = "TEST" / "TRAIN"
     MODE = "TEST"
 
