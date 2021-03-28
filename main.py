@@ -75,8 +75,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         return weights, settings
 
     elif settings['strategy'] == 'pairs_trade':
-        upper_threshold = 0.5
-        lower_threshold = 0.1
+        treshold = 0.02
         pos = np.zeros(nMarkets)
         for i in range(0, nMarkets):
             future_name = markets[i]
@@ -88,21 +87,21 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
                 fbc_price = close[i][-1]
                 fbc_i = i
 
-        print(f"FBC: {fbc_price}")
-        print(f"FBG: {fbg_price}")
-
-        if fbg_price / fbc_price > 1 + upper_threshold:
+        if fbg_price / fbc_price > 0.81 + treshold:
             # short fbg long fbc
             print("short fbg long fbc")
 
             pos[fbc_i] = 1
             pos[fbg_i] = -1
 
-        elif fbg_price / fbc_price < 1 + lower_threshold:
+        elif fbg_price / fbc_price < 0.81 - treshold:
             # long fbg short fbc
             print("long fbg short fbc")
             pos[fbc_i] = -1
             pos[fbg_i] = 1
+        else:
+            pos[fbc_i] = 0.5
+            pos[fbg_i] = 0.5
         return pos, settings
 
     elif settings['strategy'] == "obv":
