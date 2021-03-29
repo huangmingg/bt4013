@@ -17,7 +17,6 @@ from ta.volume import OnBalanceVolumeIndicator
 #from statsmodels.tsa.arima_model import ARIMAResults
 #from pmdarima.arima import auto_arima
 from ta.momentum import RSIIndicator
-from ta.volatility import AverageTrueRange
 from ta.trend import SMAIndicator
 
 
@@ -237,27 +236,20 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         for x in columns:
             if x == 'CASH':
                 rsi2[x] = 0
-                atr22[x] = 0
                 sma200[x] = 0
-                sma50[x] = 0
-                hhigh[x] = 0
-                llow[x] = 0
+                
             else:
                 rsi2[x] = RSIIndicator(df[x], window = 2).rsi().iloc[-1]
-                atr22[x] = AverageTrueRange(high = df1[x], low = df2[x], close = df[x], window=22).average_true_range().iloc[-1]
-                sma200[x] = SMAIndicator(df[x], window = 200).sma_indicator().iloc[-1]
-                sma50[x] = SMAIndicator(df[x], window = 50).sma_indicator().iloc[-1]
-                hhigh[x] = df1[x].iloc[-22:].max()
-                llow[x] = df2[x].iloc[-22:].min()
+                sma200[x] = SMAIndicator(df[x], window = 200).sma_indicator().iloc[-1]                
 
         w = [0] # adding data for CASH first
 
         for x in columns:
             if x == 'CASH':
                 continue
-            elif rsi2[x] < 5 and df[x].iloc[-1] > (llow[x] + 3*atr22[x]) and df[x].iloc[-1] > sma200[x]:  
+            elif rsi2[x] < 5  and df[x].iloc[-1] > sma200[x]:  
                 w.append(1)
-            elif rsi2[x] > 95 and df[x].iloc[-1] < (hhigh[x] - 3*atr22[x]) and df[x].iloc[-1] < sma200[x]:  
+            elif rsi2[x] > 95 and df[x].iloc[-1] < sma200[x]:  
                 w.append(-1)
             else:
                 w.append(0)
