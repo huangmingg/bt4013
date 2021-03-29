@@ -229,9 +229,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         rsi2 = {}
         atr22 = {}
         sma200 = {}
-        sma50 = {}
-        hhigh = {}
-        llow = {}
+        
 
         for x in columns:
             if x == 'CASH':
