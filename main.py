@@ -239,7 +239,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         df = np.log(df)
         columns = list(df)
         mu = [0]
-        futures_List = ["F_EB", "F_ED", "F_F", "F_SS", "F_VW", "F_ZQ"]   
+        futures_List = ["F_EB", "F_ED", "F_F", "F_SS", "F_VW"]   
         if MODE == 'TRAIN':
             for i in columns:
                 close = df[i].fillna("None").tolist()[-1]
