@@ -1,23 +1,22 @@
 import numpy as np
 import pandas as pd
-from pmdarima.arima import auto_arima
-from pypfopt.efficient_frontier import EfficientFrontier
-from pypfopt import risk_models
-from pypfopt import expected_returns
+#from pmdarima.arima import auto_arima
+# from pypfopt.efficient_frontier import EfficientFrontier
+# from pypfopt import risk_models
+# from pypfopt import expected_returns
 import functools
 import os
-from xgb_model import predict, transform_data, REQUIRED_COLS
-from pypfopt import black_litterman
-from pypfopt.black_litterman import BlackLittermanModel
-from pypfopt.risk_models import CovarianceShrinkage
+#from xgb_model import predict, transform_data, REQUIRED_COLS
+#from pypfopt import black_litterman
+#from pypfopt.black_litterman import BlackLittermanModel
+#from pypfopt.risk_models import CovarianceShrinkage
 from ta.volume import OnBalanceVolumeIndicator
-import pickle
-import joblib
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.arima_model import ARIMAResults
-from pmdarima.arima import auto_arima
+#import pickle
+#import joblib
+#from statsmodels.tsa.arima.model import ARIMA
+#from statsmodels.tsa.arima_model import ARIMAResults
+#from pmdarima.arima import auto_arima
 from ta.momentum import RSIIndicator
-from ta.volatility import AverageTrueRange
 from ta.trend import SMAIndicator
 
 
@@ -74,35 +73,126 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         settings['history'].append(weights)
         return weights, settings
 
-    elif settings['strategy'] == 'pairs_trade':
-        upper_threshold = 0.5
-        lower_threshold = 0.1
+
+    elif settings['strategy'] == 'trend':
+        nMarkets = CLOSE.shape[1]
+
+        periodLonger = 200 
+        periodShorter = 50 
+
+        # Calculate Simple Moving Average (SMA)
+        smaLongerPeriod = np.nansum(CLOSE[-periodLonger:, :], axis=0)/periodLonger
+        smaShorterPeriod = np.nansum(CLOSE[-periodShorter:, :], axis=0)/periodShorter
+
+        longEquity = smaShorterPeriod > smaLongerPeriod
+        shortEquity = ~longEquity
+
         pos = np.zeros(nMarkets)
+        pos[longEquity] = 1
+        pos[shortEquity] = -1
+
+        weights = pos/np.nansum(abs(pos))
+
+        return weights, settings
+
+
+    elif settings['strategy'] == 'ensem':
+        nMarkets = CLOSE.shape[1]
+
+        periodLonger = 200 
+        periodShorter = 50 
+
+        # Calculate Simple Moving Average (SMA)
+        smaLongerPeriod = np.nansum(CLOSE[-periodLonger:, :], axis=0)/periodLonger
+        smaShorterPeriod = np.nansum(CLOSE[-periodShorter:, :], axis=0)/periodShorter
+
+        longEquity = smaShorterPeriod > smaLongerPeriod
+        shortEquity = ~longEquity
+
+        pos = np.zeros(nMarkets)
+        pos[longEquity] = 1
+        pos[shortEquity] = -1
+
+        weights1 = pos/np.nansum(abs(pos))
+        # weights1 = pos
+
+        df = pd.DataFrame(CLOSE)
+        df1 = pd.DataFrame(VOL)
+        df.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
+        df1.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
+
+        columns = list(df.columns)
+        obv = {}
+        for x in columns:
+            if x == 'CASH':
+                obv[x] = 0
+            else:
+                obv[x] = OnBalanceVolumeIndicator(df[x], df1[x]).on_balance_volume().iloc[-1]
+
+        pos = list(obv.values())
+        # long if obv > 0, short if obv < 0
+        pos = list(map(lambda x: 1 if x>0 else -1 if x<-1 else 0, pos))
+        pos = np.array(pos)
+        weights2 = pos/np.nansum(abs(pos))
+        #weights2 = pos
+
+
+        
+        pos = np.array([1 / 89 for i in settings['markets']])
+        totalw = (weights1 + weights2) + pos
+        totalw = totalw/np.nansum(abs(totalw))
+
+
+
+        return totalw, settings
+
+
+    elif settings['strategy'] == 'pairs_trade':
+
+        #trade 2 pairs, bg-bc and ec-dx
+        treshold = 0.
+
+        pos1 = np.zeros(nMarkets)
+        pos2 = np.zeros(nMarkets)
+
         for i in range(0, nMarkets):
             future_name = markets[i]
             close = np.transpose(CLOSE)
-            if future_name == 'F_BG':
+            if future_name == 'F_BO':
+                fbg_all = close[i][:-50]
+            if future_name == 'F_W':
+                fbc_all= close[i][:-50]
+
+        hr = (fbg_all/fbc_all).mean()
+        print(hr)
+
+        for i in range(0, nMarkets):
+            future_name = markets[i]
+            close = np.transpose(CLOSE)
+            if future_name == 'F_BO':
                 fbg_price = close[i][-1]
                 fbg_i = i
-            if future_name == 'F_BC':
+            if future_name == 'F_W':
                 fbc_price = close[i][-1]
                 fbc_i = i
 
-        print(f"FBC: {fbc_price}")
-        print(f"FBG: {fbg_price}")
-
-        if fbg_price / fbc_price > 1 + upper_threshold:
+        if fbg_price / fbc_price > hr+treshold: #historical mean
             # short fbg long fbc
-            print("short fbg long fbc")
+            # print("short fbg long fbc")
 
-            pos[fbc_i] = 1
-            pos[fbg_i] = -1
+            pos2[fbc_i] = 0.5
+            pos2[fbg_i] = -0.5
 
-        elif fbg_price / fbc_price < 1 + lower_threshold:
+        elif fbg_price / fbc_price <hr-treshold:
             # long fbg short fbc
-            print("long fbg short fbc")
-            pos[fbc_i] = -1
-            pos[fbg_i] = 1
+            # print("long fbg short fbc")
+            pos2[fbc_i] = -0.5
+            pos2[fbg_i] = 0.5
+        else:
+            pos2[fbc_i] = 0
+            pos2[fbg_i] = 0
+        
+        pos = pos2
         return pos, settings
 
     elif settings['strategy'] == "obv":
@@ -139,34 +229,25 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         rsi2 = {}
         atr22 = {}
         sma200 = {}
-        sma50 = {}
-        hhigh = {}
-        llow = {}
+        
 
         for x in columns:
             if x == 'CASH':
                 rsi2[x] = 0
-                atr22[x] = 0
                 sma200[x] = 0
-                sma50[x] = 0
-                hhigh[x] = 0
-                llow[x] = 0
+                
             else:
                 rsi2[x] = RSIIndicator(df[x], window = 2).rsi().iloc[-1]
-                atr22[x] = AverageTrueRange(high = df1[x], low = df2[x], close = df[x], window=22).average_true_range().iloc[-1]
-                sma200[x] = SMAIndicator(df[x], window = 200).sma_indicator().iloc[-1]
-                sma50[x] = SMAIndicator(df[x], window = 50).sma_indicator().iloc[-1]
-                hhigh[x] = df1[x].iloc[-22:].max()
-                llow[x] = df2[x].iloc[-22:].min()
+                sma200[x] = SMAIndicator(df[x], window = 200).sma_indicator().iloc[-1]                
 
         w = [0] # adding data for CASH first
 
         for x in columns:
             if x == 'CASH':
                 continue
-            elif rsi2[x] < 5 and df[x].iloc[-1] > (llow[x] + 3*atr22[x]) and df[x].iloc[-1] > sma200[x]:  
+            elif rsi2[x] < 5  and df[x].iloc[-1] > sma200[x]:  
                 w.append(1)
-            elif rsi2[x] > 95 and df[x].iloc[-1] < (hhigh[x] - 3*atr22[x]) and df[x].iloc[-1] < sma200[x]:  
+            elif rsi2[x] > 95 and df[x].iloc[-1] < sma200[x]:  
                 w.append(-1)
             else:
                 w.append(0)
@@ -298,9 +379,10 @@ def mySettings():
     futures_list = ['CASH', 'F_AD', 'F_BO', 'F_BP', 'F_C', 'F_CC', 'F_CD', 'F_CL', 'F_CT', 'F_DX', 'F_EC', 'F_ED', 'F_ES', 'F_FC', 'F_FV', 'F_GC', 'F_HG', 'F_HO', 'F_JY', 'F_KC', 'F_LB', 'F_LC', 'F_LN', 'F_MD', 'F_MP', 'F_NG', 'F_NQ', 'F_NR', 'F_O', 'F_OJ', 'F_PA', 'F_PL', 'F_RB', 'F_RU', 'F_S', 'F_SB', 'F_SF', 'F_SI', 'F_SM', 'F_TU', 'F_TY', 'F_US', 'F_W', 'F_XX', 'F_YM', 'F_AX', 'F_CA', 'F_DT', 'F_UB', 'F_UZ', 'F_GS', 'F_LX', 'F_SS', 'F_DL', 'F_ZQ', 'F_VX', 'F_AE', 'F_BG', 'F_BC', 'F_LU', 'F_DM', 'F_AH', 'F_CF', 'F_DZ', 'F_FB', 'F_FL', 'F_FM', 'F_FP', 'F_FY', 'F_GX', 'F_HP', 'F_LR', 'F_LQ', 'F_ND', 'F_NY', 'F_PQ', 'F_RR', 'F_RF', 'F_RP', 'F_RY', 'F_SH', 'F_SX', 'F_TR', 'F_EB', 'F_VF', 'F_VT', 'F_VW', 'F_GD', 'F_F']
 
     # possible strategies - add on here
-    # STRATEGIES = ['baseline', 'bl_allocation', 'arima', 'sma', 'ema', 'pairs_trade', 'obv', 'mean_rev']
+    # STRATEGIES = ['baseline', 'bl_allocation', 'arima', 'sma', 'ema', 'pairs_trade', 'obv', 'mean_rev', 'trend', 'ensem]
     # MODE = "TEST" / "TRAIN"
-    MODE = "TEST"
+    MODE = "TRAIN"
+
 
     train_date = {
         'beginInSample': '19900101',
@@ -321,7 +403,7 @@ def mySettings():
                 **dates,
                 'day': 0,
                 'history': [],
-                'strategy': 'arima',
+                'strategy': 'ensem',
                 }
 
     return settings
