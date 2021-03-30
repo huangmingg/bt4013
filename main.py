@@ -19,7 +19,6 @@ from pmdarima.arima import auto_arima
 from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange
 from ta.trend import SMAIndicator
-import datetime
 
 
 def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, settings):
