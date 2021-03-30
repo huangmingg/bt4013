@@ -340,6 +340,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
             test_index = np.where(DATE == 20201231)[0][0]
             for i in columns:
                 if i in futures_List:
+                    #train and fit ARIMA models first
                     with open('ARIMA/Models/{}.pkl'.format(i), 'rb') as pkl:
                         model= pickle.load(pkl)
                         test = df[i].loc[test_index:]
