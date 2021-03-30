@@ -25,22 +25,19 @@ for i in futures_List:
 		pickle.dump(model, pkl)
 
 #saving in-sample prediction for evaluation of fitted model on training data
-# for i in futures_List:
-# 	df = pd.read_csv("tickerData/{}.txt".format(i))
-# 	df['DATE']= pd.to_datetime(df['DATE'],format='%Y%m%d')
-# 	#filter data to use only training data to fit model
-# 	df = df.loc[(df['DATE'] > '19900101') & (df['DATE'] <= '20201231')]
-# 	pred = None
-# 	with open('ARIMA/Models/{}.pkl'.format(i), 'rb') as pkl:
-# 		model = pickle.load(pkl)
-# 		pred = model.predict_in_sample(1)
-# 	date = df["DATE"].tolist()
-# 	date = [int(x.strftime("%Y%m%d")) for x in date]
-# 	df_in_sample = pd.DataFrame({"predictions":pred, "date": date})
-# 	df_in_sample.to_csv('ARIMA/In_sample_predictions/{}.csv'.format(i), index = False)
-
-
-
+for i in futures_List:
+	df = pd.read_csv("tickerData/{}.txt".format(i))
+	df['DATE']= pd.to_datetime(df['DATE'],format='%Y%m%d')
+	#filter data to use only training data to fit model
+	df = df.loc[(df['DATE'] > '19900101') & (df['DATE'] <= '20201231')]
+	pred = None
+	with open('ARIMA/Models/{}.pkl'.format(i), 'rb') as pkl:
+		model = pickle.load(pkl)
+		pred = model.predict_in_sample(1)
+	date = df["DATE"].tolist()
+	date = [int(x.strftime("%Y%m%d")) for x in date]
+	df_in_sample = pd.DataFrame({"predictions":pred, "date": date})
+	df_in_sample.to_csv('ARIMA/In_sample_predictions/{}.csv'.format(i), index = False)
 
 
 
