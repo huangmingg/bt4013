@@ -313,7 +313,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
 
     elif settings['strategy'] == "arima":
         #indicate here test or train data
-        MODE = "TRAIN"
+        MODE = "TEST"
         df = pd.DataFrame(CLOSE)
         df.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
         df = df[list(filter(lambda x: x != 'CASH', settings['markets']))]
@@ -384,7 +384,7 @@ def mySettings():
     # possible strategies - add on here
     # STRATEGIES = ['baseline', 'bl_allocation', 'arima', 'sma', 'ema', 'pairs_trade', 'obv', 'mean_rev', 'trend', 'ensem]
     # MODE = "TEST" / "TRAIN"
-    MODE = "TRAIN"
+    MODE = "TEST"
 
 
     train_date = {
@@ -406,7 +406,7 @@ def mySettings():
                 **dates,
                 'day': 0,
                 'history': [],
-                'strategy': 'arima',
+                'strategy': 'ensem',
                 }
 
     return settings
