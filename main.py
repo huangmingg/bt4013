@@ -19,6 +19,7 @@ from pmdarima.arima import auto_arima
 from ta.momentum import RSIIndicator
 from ta.volatility import AverageTrueRange
 from ta.trend import SMAIndicator
+import datetime
 
 
 def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, settings):
@@ -230,24 +231,47 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         settings['history'].append(pos)
         return pos, settings
 
-    elif settings['strategy'] == "ARIMA":
+    elif settings['strategy'] == "arima":
+        #indicate here test or train data
+        MODE = "TEST"
         df = pd.DataFrame(CLOSE)
         df.rename(lambda x: settings['markets'][x], axis='columns', inplace=True)
         df = df[list(filter(lambda x: x != 'CASH', settings['markets']))]
         df = np.log(df)
         columns = list(df)
         mu = [0]
-        futures_List_reduced = ["F_EB", "F_ED", "F_F", "F_SS", "F_VW", "F_ZQ"]
-        test_index = np.where(DATE == 20201231)[0][0]
-        for i in columns:
-            pred = 0
-            if i in futures_List_reduced:
-                with open('models_reduced/{}.pkl'.format(i), 'rb') as pkl:
-                    model= pickle.load(pkl)
-                    test = df[i].loc[test_index:]
-                    model.update(test)
-                    pred = model.predict(n_periods=1)[0]
-            mu.append(pred)
+        futures_List = ["F_EB", "F_ED", "F_F", "F_SS", "F_VW", "F_ZQ"]   
+        if MODE == 'TRAIN':
+            for i in columns:
+                close = df[i].fillna("None").tolist()[-1]
+                if i in futures_List:
+                    df_in_sample = pd.read_csv('ARIMA/In_sample_predictions/{}.csv'.format(i))
+                    try:
+                        pred = df_in_sample[df_in_sample['date'] == DATE[-1]]['predictions'].tolist()[0]
+                    except:
+                        pred = 0
+                else:
+                    pred = 0
+                mu.append(pred)
+        else:
+            test_index = np.where(DATE == 20201231)[0][0]
+            for i in columns:
+                if i in futures_List:
+                    with open('ARIMA/Models/{}.pkl'.format(i), 'rb') as pkl:
+                        model= pickle.load(pkl)
+                        test = df[i].loc[test_index:]
+                        try:
+                            model.update(test)
+                        except:
+                            print("cant update model")
+                        try:
+                            pred = model.predict(n_periods=1)[0]
+                        except:
+                            print("cant predict")
+                            pred = 0
+                else:
+                    pred = None
+                mu.append(pred)
         columns.insert(0,"CASH")
         mu = pd.Series(mu,index = columns)
         S = risk_models.sample_cov(df)
@@ -286,7 +310,7 @@ def mySettings():
 
     test_date = {
         'beginInSample': '20190123',
-        'endInSample': '20210331',
+        'endInSample': '20210303',
     }
 
     dates = train_date if MODE == "TRAIN" else test_date
@@ -298,7 +322,7 @@ def mySettings():
                 **dates,
                 'day': 0,
                 'history': [],
-                'strategy': 'ARIMA',
+                'strategy': 'arima',
                 }
 
     return settings
