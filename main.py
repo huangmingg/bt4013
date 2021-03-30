@@ -1,21 +1,21 @@
 import numpy as np
 import pandas as pd
-#from pmdarima.arima import auto_arima
-# from pypfopt.efficient_frontier import EfficientFrontier
-# from pypfopt import risk_models
-# from pypfopt import expected_returns
+from pmdarima.arima import auto_arima
+from pypfopt.efficient_frontier import EfficientFrontier
+from pypfopt import risk_models
+from pypfopt import expected_returns
 import functools
 import os
-#from xgb_model import predict, transform_data, REQUIRED_COLS
-#from pypfopt import black_litterman
-#from pypfopt.black_litterman import BlackLittermanModel
-#from pypfopt.risk_models import CovarianceShrinkage
+from xgb_model import predict, transform_data, REQUIRED_COLS
+from pypfopt import black_litterman
+from pypfopt.black_litterman import BlackLittermanModel
+from pypfopt.risk_models import CovarianceShrinkage
 from ta.volume import OnBalanceVolumeIndicator
-#import pickle
-#import joblib
-#from statsmodels.tsa.arima.model import ARIMA
-#from statsmodels.tsa.arima_model import ARIMAResults
-#from pmdarima.arima import auto_arima
+import pickle
+import joblib
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.arima_model import ARIMAResults
+from pmdarima.arima import auto_arima
 from ta.momentum import RSIIndicator
 from ta.trend import SMAIndicator
 
@@ -320,7 +320,10 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
         df = np.log(df)
         columns = list(df)
         mu = [0]
-        futures_List = ["F_EB", "F_ED", "F_F", "F_SS", "F_VW"]   
+        #note that the fitted linear models for the following futures need to be trained when reproducing results
+        #cannot save models to github due to large size
+        #code to train and fit model can be found at ARIMA.py
+        futures_List = ["F_ED", "F_ZQ", "F_TU", "F_SS", "F_EB"]   
         if MODE == 'TRAIN':
             for i in columns:
                 close = df[i].fillna("None").tolist()[-1]
@@ -337,6 +340,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
             test_index = np.where(DATE == 20201231)[0][0]
             for i in columns:
                 if i in futures_List:
+                    #train and fit ARIMA models first
                     with open('ARIMA/Models/{}.pkl'.format(i), 'rb') as pkl:
                         model= pickle.load(pkl)
                         test = df[i].loc[test_index:]
@@ -350,7 +354,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
                             print("cant predict")
                             pred = 0
                 else:
-                    pred = None
+                    pred = 0
                 mu.append(pred)
         columns.insert(0,"CASH")
         mu = pd.Series(mu,index = columns)
@@ -381,7 +385,7 @@ def mySettings():
     # possible strategies - add on here
     # STRATEGIES = ['baseline', 'bl_allocation', 'arima', 'sma', 'ema', 'pairs_trade', 'obv', 'mean_rev', 'trend', 'ensem]
     # MODE = "TEST" / "TRAIN"
-    MODE = "TRAIN"
+    MODE = "TEST"
 
 
     train_date = {

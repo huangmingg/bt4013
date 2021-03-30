@@ -6,7 +6,7 @@ import numpy as np
 import os
 
 #selection and fitting of ARIMA/SARIMA models on the selected futures based on XGBR regression analysis
-futures_List = ["F_EB", "F_ED", "F_F", "F_SS", "F_VW", "F_ZQ"]
+futures_List = ["F_ED", "F_ZQ", "F_TU", "F_SS", "F_EB"] 
 for i in futures_List:
 	df = pd.read_csv("tickerData/{}.txt".format(i))
 	df['DATE']= pd.to_datetime(df['DATE'],format='%Y%m%d')
