@@ -34,7 +34,7 @@ def myTradingSystem(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, setting
     elif settings['strategy'] == "arima":
         return arima(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, settings)
 
-    elif settings['strategy'] == 'ensem':
+    elif settings['strategy'] == 'ensem': #final model
         weights1, _ = trend_following(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, settings)
         weights2, _ = on_balance_volume(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, settings)
         weights3, _ = sma_504(DATE, OPEN, HIGH, LOW, CLOSE, VOL, exposure, equity, settings)
