@@ -1,0 +1,1 @@
+["volatility_kcc", "trend_sma_slow", "volatility_kch"]

@@ -74,7 +74,7 @@ def mySettings():
                 **dates,
                 'day': 0,
                 'history': [],
-                'strategy': 'ensem',
+                'strategy': 'bl_allocation',
                 }
 
     return settings

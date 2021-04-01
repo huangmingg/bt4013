@@ -93,7 +93,6 @@ def train_xgb_regressor(future_list):
         model_store.append((new_model, rmse, future, ifi))
 
     model_store = sorted(model_store, key=lambda x: x[1], reverse=False)[:20]
-    print(map(lambda x: (x[1], x[2]), model_store))
     for i in model_store:
         i[0].save_model(f'./data/xgb/{i[2]}.model')
         with open(f'./data/xgb/{i[2]}.txt', 'w') as file:
