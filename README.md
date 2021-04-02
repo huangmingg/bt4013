@@ -21,5 +21,5 @@ Due to the large size of saved ARIMA model, The saved models will not be in this
 - Models and in-sample predictions will be saved under `ARIMA` folder which will be accessed when performing evaluation of strategies
 
 **Evaluate ARIMA models on trading system**
--Set `strategy` to `arima` in `main.py`
--Run `main.py`
+- Set `strategy` to `arima` in `main.py`
+- Run `main.py`
