@@ -17,7 +17,7 @@ Anaconda (for setting up of VE)
 ## Running ARIMA Model
 Due to the large size of saved ARIMA model, The saved models will not be in this repository. As such, there is a need to train and fit models before running the ARIMA models for forecasting and evaluation
 **Fit ARIMA models**
-- `python xgb_model.py`
+- `python ARIMA.py`
 - Models and in-sample predictions will be saved under `ARIMA` folder which will be accessed when performing evaluation of strategies
 **Evaluate ARIMA models on trading system**
 -Set `strategy` to `arima` in `main.py`
