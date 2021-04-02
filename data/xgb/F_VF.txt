@@ -1,0 +1,1 @@
+["volume_vwap", "volume_adi", "trend_ema_fast"]

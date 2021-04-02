@@ -4,17 +4,40 @@ from sklearn.model_selection import train_test_split
 from xgboost import XGBRegressor
 from ta import add_all_ta_features
 import math
+import json
 
 
-REQUIRED_COLS = ['momentum_rsi', 'momentum_stoch', 'trend_cci', 'trend_ema_fast', 'trend_ema_slow',
-                'volatility_bbh', 'volatility_bbl']
+REQUIRED_COLS = ['volume_adi', 'volume_obv', 'volume_cmf', 'volume_fi', 'volume_mfi',
+       'volume_em', 'volume_sma_em', 'volume_vpt', 'volume_nvi', 'volume_vwap',
+       'volatility_atr', 'volatility_bbm', 'volatility_bbh', 'volatility_bbl',
+       'volatility_bbw', 'volatility_bbp', 'volatility_bbhi',
+       'volatility_bbli', 'volatility_kcc', 'volatility_kch', 'volatility_kcl',
+       'volatility_kcw', 'volatility_kcp', 'volatility_kchi',
+       'volatility_kcli', 'volatility_dcl', 'volatility_dch', 'volatility_dcm',
+       'volatility_dcw', 'volatility_dcp', 'volatility_ui', 'trend_macd',
+       'trend_macd_signal', 'trend_macd_diff', 'trend_sma_fast',
+       'trend_sma_slow', 'trend_ema_fast', 'trend_ema_slow', 'trend_adx',
+       'trend_adx_pos', 'trend_adx_neg', 'trend_vortex_ind_pos',
+       'trend_vortex_ind_neg', 'trend_vortex_ind_diff', 'trend_trix',
+       'trend_mass_index', 'trend_cci', 'trend_dpo', 'trend_kst',
+       'trend_kst_sig', 'trend_kst_diff', 'trend_ichimoku_conv',
+       'trend_ichimoku_base', 'trend_ichimoku_a', 'trend_ichimoku_b',
+       'trend_visual_ichimoku_a', 'trend_visual_ichimoku_b', 'trend_aroon_up',
+       'trend_aroon_down', 'trend_aroon_ind', 'trend_psar_up',
+       'trend_psar_down', 'trend_psar_up_indicator',
+       'trend_psar_down_indicator', 'trend_stc', 'momentum_rsi',
+       'momentum_stoch_rsi', 'momentum_stoch_rsi_k', 'momentum_stoch_rsi_d',
+       'momentum_tsi', 'momentum_uo', 'momentum_stoch',
+       'momentum_stoch_signal', 'momentum_wr', 'momentum_ao', 'momentum_kama',
+       'momentum_roc', 'momentum_ppo', 'momentum_ppo_signal', 'momentum_ppo_hist']
 
 
-def transform_data(df):
+def transform_data(df, required_cols):
     df = add_all_ta_features(
         df, open="Open", high="High", low="Low", close="Close", volume="Vol", fillna=True)
     df['Target'] = df['Close'].shift(-1)
-    data = df[REQUIRED_COLS + ['Target']]
+    data = df[required_cols + ['Target']]
+    data = data.iloc[:-1]
     return data
 
 
@@ -27,44 +50,53 @@ def format_header(df):
     return df
 
 
+def train_model(data, required_cols):
+    train_df, test_df = train_test_split(data, test_size=0.2, shuffle=False)
+    train_x = train_df[required_cols].to_numpy()
+    train_y = train_df['Target'].to_numpy()
+    test_x = test_df[required_cols].to_numpy()
+    test_y = test_df['Target'].to_numpy()
+    model = XGBRegressor(
+        objective='reg:squarederror',
+        seed=1,
+        n_estimators=100,
+        max_depth=3,
+        learning_rate=0.05,
+        min_child_weight=1,
+        subsample=1,
+        colsample_bytree=1,
+        colsample_bylevel=1,
+        gamma=0
+    )
+
+    model.fit(train_x, train_y)
+    est = model.predict(test_x)
+    rmse = get_rmse(test_y, est)
+    rmse = rmse / data['Target'].mean()
+    return model, rmse
+
+
 def train_xgb_regressor(future_list):
     model_store = []
     for future in future_list:
         df = pd.read_csv(f"./tickerData/{future}.txt")
         df = format_header(df)
         df = df.loc[df['Date'] < 20210101]
-        data = transform_data(df)
-        data = data.iloc[:-1]
+        data = transform_data(df, REQUIRED_COLS)
+        # Obtain naive model with all TA indicators
+        model, _ = train_model(data, REQUIRED_COLS)
+        # Keep only the important features
+        fi = sorted([(REQUIRED_COLS[index], score) for index, score in enumerate(model.feature_importances_)], key=lambda x: x[1], reverse=True)
+        ifi = list(map(lambda x: x[0], filter(lambda x: x[1] > 0.1, fi)))
+        new_data = transform_data(df, ifi)
+        new_model, rmse = train_model(new_data, ifi)
+        model_store.append((new_model, rmse, future, ifi))
 
-        train_df, test_df = train_test_split(data, test_size=0.2, shuffle=False)
-        train_x = train_df[REQUIRED_COLS].to_numpy()
-        train_y = train_df['Target'].to_numpy()
-        test_x = test_df[REQUIRED_COLS].to_numpy()
-        test_y = test_df['Target'].to_numpy()
-        model = XGBRegressor(
-            objective='reg:squarederror',
-            seed=69,
-            n_estimators=100,
-            max_depth=3,
-            learning_rate=0.05,
-            min_child_weight=1,
-            subsample=1,
-            colsample_bytree=1,
-            colsample_bylevel=1,
-            gamma=0
-        )
-
-        ## Tune the model
-
-        # Train the model
-        model.fit(train_x, train_y)
-        est = model.predict(test_x)
-        rmse = get_rmse(test_y, est)
-        model_store.append((model, rmse, future))
-
-    model_store = sorted(model_store, key=lambda x: x[1], reverse=True)[:20]
+    model_store = sorted(model_store, key=lambda x: x[1], reverse=False)[:20]
     for i in model_store:
-        model.save_model(f'./data/xgb/{i[2]}.model')
+        i[0].save_model(f'./data/xgb/{i[2]}.model')
+        with open(f'./data/xgb/{i[2]}.txt', 'w') as file:
+            json.dump(i[3], file)
 
 
 def predict(model_dir, features):

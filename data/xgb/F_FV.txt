@@ -1,0 +1,1 @@
+["trend_ema_fast", "trend_ichimoku_conv"]

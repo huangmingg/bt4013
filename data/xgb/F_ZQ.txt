@@ -1,0 +1,1 @@
+["volatility_kcc", "volatility_kch", "trend_ichimoku_conv"]
